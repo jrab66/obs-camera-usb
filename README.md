@@ -161,6 +161,32 @@ ffmpeg exits, and the script relaunches it every 3 s until the device is back.
 DirectShow addresses the camera by name, so a replug needs no reconfiguration.
 Stop the loop with Ctrl+C.
 
+### Unattended startup (survive reboots)
+
+For a dedicated streaming PC that must come back streaming after a reboot or
+power cut, two scripts in `windows/`:
+
+- **`start-all.ps1`** — starts everything in order: the server (native
+  `mediamtx.exe` if present, else `docker compose up -d`), waits for port
+  1935 (up to 3 min, Docker Desktop is slow after boot), launches
+  `start-camera.ps1` minimized, then launches OBS. Idempotent — safe to
+  re-run; it skips whatever is already running. Edit `$ObsExe` if OBS is
+  installed somewhere non-default; add `--startstreaming` or
+  `--startvirtualcam` to `$ObsArgs` to go live automatically.
+- **`setup-autologin.ps1`** — one-time setup, run from an **elevated**
+  PowerShell: enables Windows auto-login for the current user and registers
+  a scheduled task that runs `start-all.ps1` at logon.
+
+  ⚠️ The auto-login password is stored in the registry in plain text — fine
+  for a dedicated streaming box, not for a personal PC. Prefer
+  [Sysinternals Autologon](https://learn.microsoft.com/sysinternals/downloads/autologon)
+  (encrypted storage) and answer "n" to the script's auto-login question;
+  it will still register the startup task.
+
+If using Docker: enable *"Start Docker Desktop when you sign in"* in Docker
+Desktop settings — the compose file's `restart: unless-stopped` then brings
+the server up on its own.
+
 ## Troubleshooting
 
 - **Windows: "running scripts is disabled on this system"** (`la ejecución de
