@@ -1,0 +1,10 @@
+logLevel: info
+
+rtmp: yes
+rtsp: yes
+hls: no
+webrtc: no
+srt: no
+
+paths:
+  cam: {}

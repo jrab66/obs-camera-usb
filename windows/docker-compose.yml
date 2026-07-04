@@ -1,0 +1,10 @@
+services:
+  camera-rtmp:
+    image: bluenviron/mediamtx:latest
+    container_name: camera-rtmp
+    restart: unless-stopped
+    ports:
+      - "1935:1935"   # RTMP
+      - "8554:8554"   # RTSP (lower latency alternative for OBS)
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml:ro

@@ -1,0 +1,17 @@
+logLevel: info
+
+rtmp: yes
+rtsp: yes
+hls: no
+webrtc: no
+srt: no
+
+paths:
+  cam:
+    runOnInit: >
+      ffmpeg -f v4l2 -input_format mjpeg -video_size 1280x720 -framerate 30
+      -i /dev/v4l/by-id/usb-Android_100d_20080411-video-index0
+      -c:v libx264 -preset ultrafast -tune zerolatency -pix_fmt yuv420p
+      -b:v 3000k -g 30
+      -f flv rtmp://localhost:1935/cam
+    runOnInitRestart: yes

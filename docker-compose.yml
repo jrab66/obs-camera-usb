@@ -1,0 +1,16 @@
+services:
+  camera-rtmp:
+    image: bluenviron/mediamtx:latest-ffmpeg
+    container_name: camera-rtmp
+    restart: unless-stopped
+    # Hotplug-safe device access: a static `devices:` mapping binds the node
+    # at container start and goes stale when the camera is replugged.
+    # Instead, share /dev and allow the video4linux char-device major (81).
+    volumes:
+      - /dev:/dev
+      - ./mediamtx.yml:/mediamtx.yml:ro
+    device_cgroup_rules:
+      - "c 81:* rmw"
+    ports:
+      - "1935:1935"   # RTMP
+      - "8554:8554"   # RTSP (lower latency alternative for OBS)
