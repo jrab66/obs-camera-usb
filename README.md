@@ -163,6 +163,13 @@ Stop the loop with Ctrl+C.
 
 ## Troubleshooting
 
+- **Windows: "running scripts is disabled on this system"** (`la ejecución de
+  scripts está deshabilitada`): PowerShell's execution policy blocks the
+  script. Run it as
+  `powershell -ExecutionPolicy Bypass -File .\start-camera.ps1`, or fix it
+  once with `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser` followed by
+  `Unblock-File .\start-camera.ps1` (needed because files extracted from a
+  downloaded zip carry the Mark-of-the-Web).
 - **Black video but stream connects**: wrong device selected — usually the
   built-in laptop webcam (with privacy shutter closed) instead of the USB one.
 - **OBS shows nothing after restart**: right-click the Media Source →
