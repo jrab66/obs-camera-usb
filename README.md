@@ -174,14 +174,15 @@ power cut, two scripts in `windows/`:
   installed somewhere non-default; add `--startstreaming` or
   `--startvirtualcam` to `$ObsArgs` to go live automatically.
 - **`setup-autologin.ps1`** — one-time setup, run from an **elevated**
-  PowerShell: enables Windows auto-login for the current user and registers
-  a scheduled task that runs `start-all.ps1` at logon.
-
-  ⚠️ The auto-login password is stored in the registry in plain text — fine
-  for a dedicated streaming box, not for a personal PC. Prefer
+  PowerShell: enables Windows auto-login for the current user via
   [Sysinternals Autologon](https://learn.microsoft.com/sysinternals/downloads/autologon)
-  (encrypted storage) and answer "n" to the script's auto-login question;
-  it will still register the startup task.
+  (the password is stored encrypted as an LSA secret, not in plain text) and
+  registers a scheduled task that runs `start-all.ps1` at logon.
+  `Autologon64.exe` is downloaded automatically from live.sysinternals.com if
+  it isn't already next to the script or on PATH.
+
+  To undo later: run `Autologon64.exe` and click *Disable*, then
+  `Unregister-ScheduledTask -TaskName obs-camera-usb-startup`.
 
 If using Docker: enable *"Start Docker Desktop when you sign in"* in Docker
 Desktop settings — the compose file's `restart: unless-stopped` then brings
