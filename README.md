@@ -95,9 +95,18 @@ Requires ffmpeg on the host: `winget install ffmpeg` (or `choco install ffmpeg`)
 
 MediaMTX ships as a single static `.exe`, so Docker is optional on Windows:
 
-1. Download `mediamtx_vX.Y.Z_windows_amd64.zip` from
-   <https://github.com/bluenviron/mediamtx/releases> and extract
-   `mediamtx.exe` into the `windows/` folder (next to `mediamtx.yml`).
+1. Put `mediamtx.exe` in the `windows/` folder (next to `mediamtx.yml`).
+   ⚠️ Extract **only the exe** — the release zip ships its own `mediamtx.yml`,
+   which must not overwrite this repo's. From the `windows/` folder:
+
+   ```powershell
+   $asset = (Invoke-RestMethod https://api.github.com/repos/bluenviron/mediamtx/releases/latest).assets |
+       Where-Object name -like "*windows_amd64.zip" | Select-Object -First 1
+   Invoke-WebRequest $asset.browser_download_url -OutFile mediamtx.zip
+   Expand-Archive mediamtx.zip -DestinationPath mediamtx-tmp
+   Move-Item mediamtx-tmp\mediamtx.exe .
+   Remove-Item mediamtx-tmp, mediamtx.zip -Recurse
+   ```
 2. Start the server with the same config the container uses:
 
    ```powershell
