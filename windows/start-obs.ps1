@@ -13,7 +13,7 @@ $ObsExe = "C:\Program Files\obs-studio\bin\64bit\obs64.exe"
 $ObsArgs = @("--disable-shutdown-check")
 
 # Wait for the camera box RTSP port so OBS doesn't open onto a dead source
-# (up to 3 min — the camera box may still be booting).
+# (up to 3 min - the camera box may still be booting).
 $serverUp = $false
 $deadline = (Get-Date).AddSeconds(180)
 while ((Get-Date) -lt $deadline) {
@@ -26,12 +26,12 @@ while ((Get-Date) -lt $deadline) {
     }
 }
 if (-not $serverUp) {
-    Write-Host "[start-obs] WARNING: $CameraBoxIp:8554 not reachable after 180s — launching OBS anyway."
+    Write-Host "[start-obs] WARNING: $CameraBoxIp:8554 not reachable after 180s - launching OBS anyway."
     Write-Host "[start-obs] The Media Source will connect once the camera box is up (enable 'Restart playback when source becomes active')."
 }
 
 if (-not (Test-Path $ObsExe)) {
-    Write-Host "[start-obs] ERROR: OBS not found at $ObsExe — edit `$ObsExe at the top of this script."
+    Write-Host "[start-obs] ERROR: OBS not found at $ObsExe - edit `$ObsExe at the top of this script."
     exit 1
 }
 if (-not (Get-Process -Name obs64 -ErrorAction SilentlyContinue)) {

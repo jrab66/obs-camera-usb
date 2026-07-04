@@ -1,6 +1,6 @@
 # One-time setup for an unattended streaming PC. Run as Administrator.
 # Does two things:
-#   1. Enables Windows auto-login via Sysinternals Autologon — the password is
+#   1. Enables Windows auto-login via Sysinternals Autologon - the password is
 #      stored encrypted as an LSA secret, NOT in plain text. Autologon64.exe is
 #      downloaded automatically from live.sysinternals.com if not found.
 #   2. Registers a startup script to run at logon (scheduled task), so a
@@ -34,7 +34,7 @@ if (-not (Test-Path $autologon)) {
     if ($found) { $autologon = $found.Source }
 }
 if (-not (Test-Path $autologon)) {
-    Write-Host "[setup] Autologon not found — downloading from live.sysinternals.com..."
+    Write-Host "[setup] Autologon not found - downloading from live.sysinternals.com..."
     Invoke-WebRequest -Uri "https://live.sysinternals.com/Autologon64.exe" -OutFile $autologon
     Write-Host "[setup] Saved to $autologon"
 }
@@ -50,7 +50,7 @@ if ($answer -eq "y") {
     if ($LASTEXITCODE -eq 0) {
         Write-Host "[setup] Auto-login enabled (password stored encrypted as an LSA secret)."
     } else {
-        Write-Host "[setup] WARNING: Autologon exited with code $LASTEXITCODE — check the password."
+        Write-Host "[setup] WARNING: Autologon exited with code $LASTEXITCODE - check the password."
     }
     Write-Host "[setup] To disable later: run Autologon64.exe and click Disable."
 } else {

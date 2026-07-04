@@ -54,7 +54,7 @@ if (Test-Path $ObsExe) {
         Start-Process -FilePath $ObsExe -ArgumentList $ObsArgs -WorkingDirectory (Split-Path $ObsExe)
     }
 } else {
-    Write-Host "[start-all] OBS not found at $ObsExe — edit `$ObsExe at the top of this script."
+    Write-Host "[start-all] OBS not found at $ObsExe - edit `$ObsExe at the top of this script."
 }
 
 Write-Host "[start-all] done: server up, camera pushing, OBS launched."

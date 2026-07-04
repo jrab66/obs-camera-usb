@@ -2,7 +2,7 @@
 # Run AFTER starting the server (`docker compose up -d` or `.\mediamtx.exe mediamtx.yml`).
 # Requires ffmpeg on PATH (winget install ffmpeg).
 #
-# Set this to your camera's exact DirectShow name — see README.md "Identify your USB camera".
+# Set this to your camera's exact DirectShow name - see README.md "Identify your USB camera".
 $CameraName = "UVC Camera"
 
 # Match these to a mode your camera supports (README: "List supported modes").
