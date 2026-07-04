@@ -91,6 +91,30 @@ docker compose up -d          # start the RTMP/RTSP server
 
 Requires ffmpeg on the host: `winget install ffmpeg` (or `choco install ffmpeg`).
 
+### Running without Docker
+
+MediaMTX ships as a single static `.exe`, so Docker is optional on Windows:
+
+1. Download `mediamtx_vX.Y.Z_windows_amd64.zip` from
+   <https://github.com/bluenviron/mediamtx/releases> and extract
+   `mediamtx.exe` into the `windows/` folder (next to `mediamtx.yml`).
+2. Start the server with the same config the container uses:
+
+   ```powershell
+   cd windows
+   .\mediamtx.exe mediamtx.yml   # instead of docker compose up -d
+   .\start-camera.ps1            # unchanged (separate window)
+   ```
+
+Everything else is identical: same `rtmp://<host>:1935/cam` and
+`rtsp://<host>:8554/cam` URLs, same camera identification steps below, same
+reconnection behavior. To run it in the background, install it as a service
+with e.g. [NSSM](https://nssm.cc) or a Scheduled Task set to run at logon.
+
+> If the camera is plugged into the **same PC that runs OBS**, you don't need
+> a server at all — add it directly in OBS as a *Video Capture Device* source.
+> This setup is for consuming the camera from a different machine.
+
 ### Identify your USB camera
 
 List all DirectShow video devices:
