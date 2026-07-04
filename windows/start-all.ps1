@@ -1,6 +1,9 @@
 # Start the whole streaming stack: MediaMTX server + camera push + OBS.
 # Run manually, or register it to run at logon with setup-autologin.ps1.
 
+# Set to $false on a camera-only box (OBS running on a different machine).
+$StartObs = $true
+
 # Where OBS is installed (default install path). Edit if yours differs.
 $ObsExe = "C:\Program Files\obs-studio\bin\64bit\obs64.exe"
 # --disable-shutdown-check skips the "safe mode?" prompt after an unclean
@@ -42,6 +45,10 @@ Start-Process powershell -WindowStyle Minimized -ArgumentList `
     "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$PSScriptRoot\start-camera.ps1`""
 
 # 4. Start OBS. Working directory must be OBS's own folder or it fails to start.
+if (-not $StartObs) {
+    Write-Host "[start-all] done: server up, camera pushing (OBS disabled on this box)."
+    exit 0
+}
 if (Test-Path $ObsExe) {
     if (-not (Get-Process -Name obs64 -ErrorAction SilentlyContinue)) {
         Start-Process -FilePath $ObsExe -ArgumentList $ObsArgs -WorkingDirectory (Split-Path $ObsExe)

@@ -188,6 +188,53 @@ If using Docker: enable *"Start Docker Desktop when you sign in"* in Docker
 Desktop settings — the compose file's `restart: unless-stopped` then brings
 the server up on its own.
 
+Already configured auto-login yourself (Autologon GUI or otherwise)? Run
+`setup-autologin.ps1` anyway and answer **n** to the auto-login question — it
+still registers the startup task, which is the part `start-all.ps1` needs.
+
+### Two-machine setup (camera box + OBS PC)
+
+One PC handles the camera and serves the stream (publisher); a different PC
+runs OBS (subscriber). Each box gets its own startup script, registered at
+logon by the same `setup-autologin.ps1`.
+
+**Camera box** (the PC with the USB camera plugged in) — runs `start-all.ps1`:
+
+1. Set `$StartObs = $false` at the top of `start-all.ps1` — no OBS here.
+2. Register it at logon (answer "n" to auto-login if already configured):
+
+   ```powershell
+   # elevated PowerShell, in windows\
+   powershell -ExecutionPolicy Bypass -File .\setup-autologin.ps1
+   ```
+
+3. Open the firewall for the stream ports (elevated PowerShell, one time):
+
+   ```powershell
+   New-NetFirewallRule -DisplayName "Camera RTSP/RTMP" -Direction Inbound `
+       -Protocol TCP -LocalPort 8554,1935 -Action Allow
+   ```
+
+4. Note its IP: `ipconfig` → IPv4 address of the active adapter (give it a
+   DHCP reservation in your router so it never changes).
+
+**OBS PC** — runs `start-obs.ps1`, which waits until the camera box is
+reachable and then launches OBS:
+
+1. Set `$CameraBoxIp` at the top of `start-obs.ps1` to the camera box's IP.
+2. In OBS, add the Media Source once: input
+   `rtsp://<camera-box-ip>:8554/cam`, *Local File* unchecked, *Network
+   Buffering* 0 MB, *Restart playback when source becomes active* checked.
+3. Register it at logon:
+
+   ```powershell
+   # elevated PowerShell, in windows\
+   powershell -ExecutionPolicy Bypass -File .\setup-autologin.ps1 -StartupScript start-obs.ps1
+   ```
+
+Reachability check if something doesn't connect:
+`Test-NetConnection <camera-box-ip> -Port 8554`.
+
 ## Troubleshooting
 
 - **Windows: "running scripts is disabled on this system"** (`la ejecución de

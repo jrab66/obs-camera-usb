@@ -3,8 +3,19 @@
 #   1. Enables Windows auto-login via Sysinternals Autologon — the password is
 #      stored encrypted as an LSA secret, NOT in plain text. Autologon64.exe is
 #      downloaded automatically from live.sysinternals.com if not found.
-#   2. Registers start-all.ps1 to run at logon (scheduled task), so a reboot
-#      ends with the server, camera push, and OBS all running.
+#   2. Registers a startup script to run at logon (scheduled task), so a
+#      reboot ends with everything running. Which script depends on the box:
+#        camera box (default):  .\setup-autologin.ps1
+#        OBS PC (subscriber):   .\setup-autologin.ps1 -StartupScript start-obs.ps1
+
+param(
+    [string]$StartupScript = "start-all.ps1"
+)
+
+if (-not (Test-Path (Join-Path $PSScriptRoot $StartupScript))) {
+    Write-Host "[setup] ERROR: $StartupScript not found next to this script."
+    exit 1
+}
 
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
     ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -46,14 +57,14 @@ if ($answer -eq "y") {
     Write-Host "[setup] Skipped auto-login."
 }
 
-# --- 2. Run start-all.ps1 at logon ---------------------------------------------
+# --- 2. Run the startup script at logon -----------------------------------------
 $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument `
-    "-NoProfile -ExecutionPolicy Bypass -WindowStyle Minimized -File `"$PSScriptRoot\start-all.ps1`""
+    "-NoProfile -ExecutionPolicy Bypass -WindowStyle Minimized -File `"$PSScriptRoot\$StartupScript`""
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
     -ExecutionTimeLimit (New-TimeSpan -Hours 0)
 Register-ScheduledTask -TaskName "obs-camera-usb-startup" -Action $action -Trigger $trigger `
     -Settings $settings -Force | Out-Null
-Write-Host "[setup] Scheduled task 'obs-camera-usb-startup' registered: start-all.ps1 runs at logon."
+Write-Host "[setup] Scheduled task 'obs-camera-usb-startup' registered: $StartupScript runs at logon."
 Write-Host "[setup] To remove it: Unregister-ScheduledTask -TaskName obs-camera-usb-startup"
 Write-Host "[setup] Done. Reboot to test the full chain."
