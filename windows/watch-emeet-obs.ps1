@@ -8,9 +8,12 @@
 #   3. Is the PIXY itself on the network ($CameraIp: HTTP on :8000, else ping)?
 #      Via obs-websocket: does the $CameraSource source show a live picture?
 #      Two snapshots 3 s apart: black (dark) or frozen (byte-identical) = bad.
-#      Fix in steps: restart the OBS source; still bad and the PIXY is online
-#      = restart EMEET Studio (at most once per $StudioRestartCooldownMin min)
-#      and re-check. PIXY offline = only log it (power / Wi-Fi problem).
+#      Fix in steps: EMEET Studio's virtual camera off (read from its av.log)
+#      = press "Enable Virtual Camera" via UI Automation; restart the OBS
+#      source; still bad and the PIXY is online = restart EMEET Studio (then
+#      re-enable its virtual camera) and re-check. PIXY offline = only log it.
+#      Studio 2.0.3 always starts with the virtual camera OFF; the UI
+#      Automation step needs this script to run in the console session.
 #   4. OBS Virtual Camera on? If not, start it.
 #   5. Log (never change) the PIXY mic: Windows endpoint state + OBS mute.
 #
@@ -38,10 +41,13 @@ $CameraHealthUrl = "http://${CameraIp}:8000/"
 # Runs are 5 min apart and the restart stamp is written ~20 s into a run, so
 # 4 min lets every run restart EMEET Studio when needed.
 $StudioRestartCooldownMin = 4
-# EMEET Studio 2.0.3 comes back with its virtual camera OFF after a restart
-# (not saved in its settings), so restarting it breaks the feed until someone
-# clicks the switch. Keep this off until that can be automated.
-$RestartEmeetStudio = $false
+# EMEET Studio 2.0.3 starts with its virtual camera OFF (not saved in its
+# settings); the watcher turns it back on through UI Automation.
+$RestartEmeetStudio = $true
+$StudioLog = Join-Path $env:LOCALAPPDATA "EMEET STUDIO\Logs\av.log"
+# Seconds to let a freshly started EMEET Studio find the PIXY before
+# enabling its virtual camera.
+$StudioStartWaitSec = 20
 
 $logDir = Join-Path $env:LOCALAPPDATA "obs-camera-usb"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
@@ -167,6 +173,103 @@ function Restart-ObsSource($name) {
     Start-Sleep -Seconds 8
 }
 
+# Virtual camera state from EMEET Studio's own log: each launch starts OFF
+# ("virtual camera is registered"), "openVirtualCamera" = ON,
+# "closeVirtualCamera" = OFF. Last event wins.
+function Get-StudioVcamState {
+    if (-not (Test-Path $StudioLog)) { return "unknown" }
+    $state = "unknown"
+    Select-String -Path $StudioLog -Pattern 'virtual camera is registered|openVirtualCamera 2|closeVirtualCamera' |
+        ForEach-Object {
+            if ($_.Line -match 'closeVirtualCamera|is registered') { $state = "off" } else { $state = "on" }
+        }
+    $state
+}
+
+# Open EMEET Studio's V-Cam tab (mouse click - the tab ignores UI Automation)
+# and invoke "Enable Virtual Camera" (AutomationId ...btn_vcam_toggle). The
+# button toggles, so only call this when Get-StudioVcamState says "off".
+function Enable-StudioVcam {
+    Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+    $A = [Windows.Automation.AutomationElement]
+    $proc = Get-Process -Name "EMEET STUDIO" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $proc) { throw "EMEET Studio is not running" }
+    $win = $A::RootElement.FindFirst([Windows.Automation.TreeScope]::Children,
+        (New-Object Windows.Automation.PropertyCondition($A::ProcessIdProperty, $proc.Id)))
+    if (-not $win) { throw "EMEET Studio window not found (not in this session?)" }
+    $find = {
+        param($suffix)
+        $all = $win.FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition)
+        foreach ($e in $all) { if ($e.Current.AutomationId -like "*$suffix") { return $e } }
+    }
+    $btn = & $find "btn_vcam_toggle"
+    if (-not $btn) {
+        # The V-Cam tab ignores UI Automation Invoke/Select, so switch to it
+        # with a real mouse click: bring Studio to the front, click the tab's
+        # centre, put the cursor back.
+        $tab = & $find "tab_video_output_item_vCam"
+        if (-not $tab) { throw "V-Cam tab not found" }
+        if (-not ("W.Input" -as [type])) {
+            Add-Type -Namespace W -Name Input -MemberDefinition @'
+[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+[DllImport("user32.dll")] public static extern bool SetForegroundWindow(System.IntPtr h);
+[DllImport("user32.dll")] public static extern bool ShowWindow(System.IntPtr h, int cmd);
+[DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+[DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT p);
+[DllImport("user32.dll")] public static extern void mouse_event(uint f, uint dx, uint dy, uint d, System.UIntPtr e);
+[DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint f, System.UIntPtr e);
+public struct POINT { public int X; public int Y; }
+'@
+        }
+        [W.Input]::SetProcessDPIAware() | Out-Null
+        [W.Input]::keybd_event(0x1B, 0, 0, [UIntPtr]::Zero); [W.Input]::keybd_event(0x1B, 0, 2, [UIntPtr]::Zero)  # Esc: close Start menu etc.
+        [W.Input]::ShowWindow($proc.MainWindowHandle, 9) | Out-Null                                              # SW_RESTORE
+        [W.Input]::keybd_event(0x12, 0, 0, [UIntPtr]::Zero); [W.Input]::keybd_event(0x12, 0, 2, [UIntPtr]::Zero)  # Alt: allow focus change
+        [W.Input]::SetForegroundWindow($proc.MainWindowHandle) | Out-Null
+        Start-Sleep -Milliseconds 500
+        $r = $tab.Current.BoundingRectangle
+        $old = New-Object W.Input+POINT
+        [W.Input]::GetCursorPos([ref]$old) | Out-Null
+        [W.Input]::SetCursorPos([int]($r.X + $r.Width / 2), [int]($r.Y + $r.Height / 2)) | Out-Null
+        [W.Input]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero); [W.Input]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
+        [W.Input]::SetCursorPos($old.X, $old.Y) | Out-Null
+        Start-Sleep -Seconds 2
+        $btn = & $find "btn_vcam_toggle"
+        if (-not $btn) { throw "Enable Virtual Camera button not found after clicking the V-Cam tab" }
+    }
+    $btn.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
+    Start-Sleep -Seconds 4
+}
+
+# Make sure Studio's virtual camera is on; returns a short status text.
+function Confirm-StudioVcam {
+    $vcam = Get-StudioVcamState
+    if ($vcam -eq "on") { return "on" }
+    if ($CheckOnly) { return "$vcam (check-only, not enabling)" }
+    try {
+        Enable-StudioVcam
+        $vcam = Get-StudioVcamState
+        if ($vcam -eq "on") { return "was off - enabled" }
+        return "still $vcam after pressing Enable Virtual Camera"
+    } catch {
+        return "enable failed ($($_.Exception.Message))"
+    }
+}
+
+# Start Studio, then keep trying to enable its virtual camera until the UI is
+# ready (the button only exists once the window is fully built).
+function Start-EmeetStudio {
+    Start-Process -FilePath $EmeetStudioExe -WorkingDirectory (Split-Path $EmeetStudioExe)
+    Start-Sleep -Seconds $StudioStartWaitSec
+    $deadline = (Get-Date).AddSeconds(60)
+    do {
+        $result = Confirm-StudioVcam
+        if ($result -eq "on" -or $result -like "was off*") { break }
+        Start-Sleep -Seconds 5
+    } while ((Get-Date) -lt $deadline)
+    Log "EMEET Studio virtual camera: $result"
+}
+
 # --- 1. EMEET Studio ------------------------------------------------------------
 if (Get-Process -Name "EMEET STUDIO" -ErrorAction SilentlyContinue) {
     Log "EMEET Studio: running"
@@ -174,8 +277,7 @@ if (Get-Process -Name "EMEET STUDIO" -ErrorAction SilentlyContinue) {
     Log "EMEET Studio: NOT running (check-only, not starting)"
 } else {
     Log "EMEET Studio: not running - starting it"
-    Start-Process -FilePath $EmeetStudioExe -WorkingDirectory (Split-Path $EmeetStudioExe) -WindowStyle Minimized
-    Start-Sleep -Seconds 20
+    Start-EmeetStudio
 }
 
 # --- 2. OBS ---------------------------------------------------------------------
@@ -200,6 +302,9 @@ try {
 # --- 3. Camera: PIXY on the network, live picture in OBS ------------------------
 $cameraOnline = Test-CameraOnline
 Log ("PIXY {0}: {1}" -f $CameraIp, $(if ($cameraOnline) { "online" } else { "OFFLINE (no answer on :8000 or ping)" }))
+if (Get-Process -Name "EMEET STUDIO" -ErrorAction SilentlyContinue) {
+    Log "EMEET Studio virtual camera: $(Confirm-StudioVcam)"
+}
 try {
     $state = Get-SourceState $CameraSource
     if ($state.Ok) {
@@ -213,7 +318,7 @@ try {
         if ($state.Ok) {
             Log "camera '$CameraSource': fixed by source restart - $($state.Text)"
         } elseif (-not $RestartEmeetStudio) {
-            Log "camera '$CameraSource': still $($state.Text) - turn on the virtual camera in EMEET Studio (automatic Studio restart disabled)"
+            Log "camera '$CameraSource': still $($state.Text) - automatic EMEET Studio restart disabled"
         } elseif (-not $cameraOnline) {
             Log "camera '$CameraSource': still $($state.Text); PIXY is offline - check its power / Wi-Fi (not restarting EMEET Studio)"
         } else {
@@ -227,14 +332,13 @@ try {
                 Set-Content -Path $stamp -Value (Get-Date -Format "o")
                 Stop-Process -Name "EMEET STUDIO" -Force -ErrorAction SilentlyContinue
                 Start-Sleep -Seconds 3
-                Start-Process -FilePath $EmeetStudioExe -WorkingDirectory (Split-Path $EmeetStudioExe) -WindowStyle Minimized
-                Start-Sleep -Seconds 30
+                Start-EmeetStudio
                 Restart-ObsSource $CameraSource
                 $state = Get-SourceState $CameraSource
                 if ($state.Ok) {
                     Log "camera '$CameraSource': fixed by EMEET Studio restart - $($state.Text)"
                 } else {
-                    Log "camera '$CameraSource': still $($state.Text) after EMEET Studio restart - check the virtual camera switch in EMEET Studio"
+                    Log "camera '$CameraSource': still $($state.Text) after EMEET Studio restart - check the PIXY / EMEET Studio"
                 }
             }
         }

@@ -193,23 +193,9 @@ power cut, two scripts in `windows/`:
   To undo later: run `Autologon64.exe` and click *Disable*, then
   `Unregister-ScheduledTask -TaskName obs-camera-usb-startup`.
 
-- **`watch-emeet-obs.ps1`** — watchdog for an EMEET PIXY fed through EMEET
-  Studio into OBS (source `emeet` = *EMEET STUDIO Virtual Camera*). Every run:
-  starts EMEET Studio / OBS if missing, checks the PIXY Wireless is on the
-  network (`$CameraIp`, HTTP on port 8000), takes two snapshots of the camera
-  source through obs-websocket and, if the picture is black or frozen,
-  restarts the source. Restarting EMEET Studio is built in but off
-  (`$RestartEmeetStudio`): Studio 2.0.3 comes back with its virtual camera
-  switched off, which only a click in Studio turns back on. It also starts the OBS Virtual
-  Camera if off and logs the PIXY mic state. `-CheckOnly`
-  reports without changing anything. Log:
-  `%LOCALAPPDATA%\obs-camera-usb\watcher.log`. Source names and paths are at
-  the top of the script.
-- **`install-watcher.ps1`** — registers the watchdog as scheduled task
-  `obs-camera-usb-watcher` (elevated PowerShell): every 5 minutes, starting
-  3 minutes after logon, as the logged-on user so anything it starts lands in
-  the console session. Remove with
-  `Unregister-ScheduledTask -TaskName obs-camera-usb-watcher`.
+- **`watch-emeet-obs.ps1`** / **`install-watcher.ps1`** — watchdog for an
+  EMEET PIXY Wireless fed through EMEET Studio into OBS; see
+  [EMEET PIXY watcher](#emeet-pixy-watcher-obs-pc) below.
 
 If using Docker: enable *"Start Docker Desktop when you sign in"* in Docker
 Desktop settings — the compose file's `restart: unless-stopped` then brings
@@ -218,6 +204,129 @@ the server up on its own.
 Already configured auto-login yourself (Autologon GUI or otherwise)? Run
 `setup-autologin.ps1` anyway and answer **n** to the auto-login question — it
 still registers the startup task, which is the part `start-all.ps1` needs.
+
+### EMEET PIXY watcher (OBS PC)
+
+For an OBS PC whose camera is an **EMEET PIXY Wireless** (Wi-Fi, on the LAN)
+brought in by **EMEET Studio**: Studio receives the PIXY and exposes it as
+the *EMEET STUDIO Virtual Camera* (video) and *EMEET Virtual Audio* (mic),
+which OBS captures (source `emeet` + an audio input capture).
+
+```
+PIXY Wireless --Wi-Fi--> EMEET Studio --virtual camera / virtual audio--> OBS --> stream
+```
+
+The weak link is EMEET Studio 2.0.3: it **always starts with its virtual
+camera off** (the switch is not saved), and it may need a restart to find the
+PIXY again after the camera is switched back on. Until the virtual camera is
+enabled, OBS shows black and gets no PIXY audio.
+
+`watch-emeet-obs.ps1` runs every 5 minutes (scheduled task) and keeps the
+chain up. Each run:
+
+1. **EMEET Studio running?** If not, starts it and enables its virtual camera.
+2. **OBS running?** If not, starts it (`--disable-shutdown-check --startvirtualcam`).
+3. **PIXY on the network?** HTTP `200` from its built-in web server
+   (`http://<CameraIp>:8000/`), falling back to ping. Note: a PIXY switched
+   off with its button stays on Wi-Fi, so "online" means reachable, not
+   streaming.
+4. **Studio virtual camera on?** Read from Studio's own log (below); if off,
+   enables it through the UI (below).
+5. **Live picture in OBS?** Two snapshots of the `emeet` source through
+   obs-websocket, 3 s apart. Dark = *BLACK*, byte-identical = *FROZEN* (live
+   video always differs by sensor noise). If bad: restart the OBS source; still
+   bad and the PIXY is online: restart EMEET Studio (which re-enables its
+   virtual camera) and check again. PIXY offline: log only.
+6. **OBS Virtual Camera on?** If not, starts it.
+7. **PIXY mic:** logs the Windows *EMEET Virtual Audio* endpoint state and
+   whether the OBS mic source is muted (never changes it).
+
+`-CheckOnly` reports all of the above without starting, restarting or
+clicking anything.
+
+#### How the EMEET Studio automation works
+
+- **Virtual camera state** comes from Studio's log,
+  `%LOCALAPPDATA%\EMEET STUDIO\Logs\av.log`: each launch writes
+  `virtual camera is registered` (= off), enabling writes
+  `openVirtualCamera 2` (= on), disabling writes `closeVirtualCamera` (= off).
+  The last of those lines wins.
+- **Enabling it** uses Windows UI Automation: Studio (Qt/QML) exposes its
+  controls with stable ids. The *V-Cam* tab (`tab_video_output_item_vCam`)
+  ignores UI Automation, so the script brings Studio to the front and clicks
+  the tab's centre with the mouse (cursor put back afterwards), then invokes
+  **Enable Virtual Camera** (`btn_vcam_toggle`) through UI Automation. The
+  button is a toggle, so it is only pressed when the log says *off*.
+- UI Automation only works **inside the logged-on console session**, which is
+  why the scheduled task runs as the interactive user.
+
+#### Install / update
+
+On the OBS PC, copy the `windows\` scripts next to each other, then from an
+**elevated** PowerShell in `windows\`:
+
+```powershell
+# dry run: reports, changes nothing
+powershell -ExecutionPolicy Bypass -File .\watch-emeet-obs.ps1 -CheckOnly
+
+# register the task: every 5 min from now, plus once 3 min after each logon
+powershell -ExecutionPolicy Bypass -File .\install-watcher.ps1
+Start-ScheduledTask -TaskName obs-camera-usb-watcher
+
+# follow the log
+Get-Content $env:LOCALAPPDATA\obs-camera-usb\watcher.log -Tail 20 -Wait
+```
+
+Updating the script later: replace `watch-emeet-obs.ps1`; the task picks it up
+on its next run. Remove everything:
+`Unregister-ScheduledTask -TaskName obs-camera-usb-watcher`.
+
+#### Settings (top of `watch-emeet-obs.ps1`)
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `$CameraSource` | `emeet` | OBS source showing the PIXY |
+| `$MicSource` / `$MicEndpointName` | `Captura de entrada audio` / `EMEET Virtual Audio` | OBS mic source / Windows endpoint to report |
+| `$CameraIp` | `192.168.100.20` | PIXY on the LAN (give it a DHCP reservation) |
+| `$BlackThreshold` | `8` | average snapshot brightness (0-255) below this = black |
+| `$RestartEmeetStudio` | `$true` | allow restarting Studio when the picture stays bad |
+| `$StudioRestartCooldownMin` | `4` | minimum minutes between Studio restarts (4 = any run) |
+| `$StudioStartWaitSec` | `20` | wait after starting Studio before enabling its virtual camera (then retries up to 60 s) |
+| `$EnsureObsVirtualCam` | `$true` | keep the OBS Virtual Camera on |
+
+#### What a healthy log looks like
+
+```
+[watcher] EMEET Studio: running
+[watcher] OBS: running
+[watcher] PIXY 192.168.100.20: online
+[watcher] EMEET Studio virtual camera: on
+[watcher] camera 'emeet': picture OK (brightness 101.9)
+[watcher] OBS virtual camera: on
+[watcher] mic: Windows 'EMEET Virtual Audio' active; OBS 'Captura de entrada audio' unmuted
+```
+
+Recovery after Studio was closed (verified 2026-09-27, ~35 s to a live picture):
+
+```
+[watcher] EMEET Studio: not running - starting it
+[watcher] EMEET Studio virtual camera: was off - enabled
+[watcher] camera 'emeet': picture OK (brightness 101.9)
+```
+
+#### Gotchas
+
+- **Don't manage the OBS PC over RDP; use RustDesk (or the physical screen).**
+  An RDP logon leaves a *RemoteInteractive* session: Windows gives it RDP's
+  audio devices ("Audio remoto") instead of the real ones, so OBS mics fail
+  (`GetDefaultAudioEndpoint: 80070490`), and Task Scheduler refuses to run
+  logged-on-user tasks in it (`0x800710E0`). Fix: reboot so auto-login
+  creates a fresh console session.
+- **PIXY switched off = still on Wi-Fi.** While it is off, the watcher sees
+  it online with a black picture and restarts Studio every run; harmless,
+  and it means the picture comes back within one run of switching it on.
+- **Studio's window may pop to the front** when the watcher enables its
+  virtual camera (the tab click needs it). Expected on an unattended box.
 
 ### Two-machine setup (camera box + OBS PC)
 
