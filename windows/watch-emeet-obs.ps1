@@ -4,7 +4,7 @@
 # Each run:
 #   1. EMEET Studio running? If not, start it (it feeds the PIXY into
 #      "EMEET STUDIO Virtual Camera" + "EMEET Virtual Audio").
-#   2. OBS running? If not, start it with the virtual camera on.
+#   2. OBS running? If not, start it.
 #   3. Is the PIXY itself on the network ($CameraIp: HTTP on :8000, else ping)?
 #      Via obs-websocket: does the $CameraSource source show a live picture?
 #      Two snapshots 3 s apart: black (dark) or frozen (byte-identical) = bad.
@@ -14,7 +14,7 @@
 #      re-enable its virtual camera) and re-check. PIXY offline = only log it.
 #      Studio 2.0.3 always starts with the virtual camera OFF; the UI
 #      Automation step needs this script to run in the console session.
-#   4. OBS Virtual Camera on? If not, start it.
+#   4. OBS Virtual Camera on? If not, start it (only if $EnsureObsVirtualCam).
 #   5. Log (never change) the PIXY mic: Windows endpoint state + OBS mute.
 #
 # -CheckOnly: report only, change nothing (no starts, no source restart).
@@ -30,9 +30,10 @@ $MicSource = "emeet-audio"
 $MicEndpointName = "EMEET Virtual Audio"
 
 $ObsExe = "C:\Program Files\obs-studio\bin\64bit\obs64.exe"
-$ObsArgs = @("--disable-shutdown-check", "--startvirtualcam")
+$ObsArgs = @("--disable-shutdown-check")
 $EmeetStudioExe = "C:\Program Files\EMEET STUDIO\bin\64bit\EMEET STUDIO.exe"
-$EnsureObsVirtualCam = $true
+# OBS Virtual Camera (OBS output, not EMEET Studio's) - not needed here.
+$EnsureObsVirtualCam = $false
 # Average snapshot brightness (0-255) below this counts as "no picture".
 $BlackThreshold = 8
 # The PIXY Wireless on the LAN; port 8000 is its built-in web server.

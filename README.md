@@ -225,7 +225,7 @@ enabled, OBS shows black and gets no PIXY audio.
 chain up. Each run:
 
 1. **EMEET Studio running?** If not, starts it and enables its virtual camera.
-2. **OBS running?** If not, starts it (`--disable-shutdown-check --startvirtualcam`).
+2. **OBS running?** If not, starts it (`--disable-shutdown-check`).
 3. **PIXY on the network?** HTTP `200` from its built-in web server
    (`http://<CameraIp>:8000/`), falling back to ping. Note: a PIXY switched
    off with its button stays on Wi-Fi, so "online" means reachable, not
@@ -237,7 +237,8 @@ chain up. Each run:
    video always differs by sensor noise). If bad: restart the OBS source; still
    bad and the PIXY is online: restart EMEET Studio (which re-enables its
    virtual camera) and check again. PIXY offline: log only.
-6. **OBS Virtual Camera on?** If not, starts it.
+6. **OBS Virtual Camera** (OBS's own output, not EMEET Studio's): off by
+   default (`$EnsureObsVirtualCam = $false`); set it to `$true` to keep it on.
 7. **PIXY mic:** logs the Windows *EMEET Virtual Audio* endpoint state and
    whether the OBS mic source is muted (never changes it).
 
@@ -292,7 +293,7 @@ on its next run. Remove everything:
 | `$RestartEmeetStudio` | `$true` | allow restarting Studio when the picture stays bad |
 | `$StudioRestartCooldownMin` | `4` | minimum minutes between Studio restarts (4 = any run) |
 | `$StudioStartWaitSec` | `20` | wait after starting Studio before enabling its virtual camera (then retries up to 60 s) |
-| `$EnsureObsVirtualCam` | `$true` | keep the OBS Virtual Camera on |
+| `$EnsureObsVirtualCam` | `$false` | keep the OBS Virtual Camera on (not needed when OBS streams directly) |
 
 #### What a healthy log looks like
 
