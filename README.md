@@ -328,6 +328,34 @@ Recovery after Studio was closed (verified 2026-09-27, ~35 s to a live picture):
 - **Studio's window may pop to the front** when the watcher enables its
   virtual camera (the tab click needs it). Expected on an unattended box.
 
+### OBS audio tools (OBS PC)
+
+Three standalone scripts in `windows\` for checking and setting OBS audio on
+the OBS PC. Run them in PowerShell on that PC
+(`powershell -ExecutionPolicy Bypass -File .\<script>`).
+
+- **`obs-audio-audit.ps1`** (read-only) — snapshot of the audio setup: logon
+  session and OBS / EMEET Studio / RustDesk processes, active Windows audio
+  endpoints, the OBS profile's monitoring device / sample rate / channels,
+  every audio and camera source (volume, mute, device, which scenes use it)
+  and the device each source last opened according to the current OBS log.
+  Run it before and after a change to compare.
+- **`set-obs-audio-monitoring.ps1`** — sets the OBS *monitoring* output
+  (`-MonitorDevice`, matched against active Windows playback devices) and the
+  monitoring mode of chosen sources (`-Sources`, `-Mode Off | MonitorOnly |
+  MonitorAndOutput`) for profile `-ObsProfile`. **Dry run by default**: it
+  prints current vs planned values and warns about sources pointing at audio
+  devices that no longer exist. `-Apply` writes, only with OBS closed, after
+  copying both files to `*.pre-monitoring` (restore = copy them back).
+  Defaults: source `emeet-audio` (PIXY mic), `MonitorOnly`, speakers
+  `Altavoces (Realtek(R) Audio)`, profile `Spingpong`.
+- **`audio-session-diag.ps1`** (read-only) — for "OBS audio only works while
+  RDP is connected": machine, logon sessions (console vs `rdp-tcp`), which
+  session OBS / EMEET Studio run in, audio services, every audio endpoint and
+  its state, audio devices, RDP audio policy, recent audio events. Typical
+  finding: OBS was started inside an RDP session and only sees *Audio remoto*
+  (see the RDP gotcha under [EMEET PIXY watcher](#emeet-pixy-watcher-obs-pc)).
+
 ### Two-machine setup (camera box + OBS PC)
 
 One PC handles the camera and serves the stream (publisher); a different PC
