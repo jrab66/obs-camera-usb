@@ -195,10 +195,12 @@ power cut, two scripts in `windows/`:
 
 - **`watch-emeet-obs.ps1`** — watchdog for an EMEET PIXY fed through EMEET
   Studio into OBS (source `emeet` = *EMEET STUDIO Virtual Camera*). Every run:
-  starts EMEET Studio / OBS if missing, snapshots the camera source through
-  obs-websocket and restarts it if the picture is black (still black = turn
-  on the virtual camera in EMEET Studio, which no script can click), starts
-  the OBS Virtual Camera if off, and logs the PIXY mic state. `-CheckOnly`
+  starts EMEET Studio / OBS if missing, checks the PIXY Wireless is on the
+  network (`$CameraIp`, HTTP on port 8000), takes two snapshots of the camera
+  source through obs-websocket and, if the picture is black or frozen,
+  restarts the source, then (PIXY online) restarts EMEET Studio so it finds
+  the camera again (at most once per 15 min). It also starts the OBS Virtual
+  Camera if off and logs the PIXY mic state. `-CheckOnly`
   reports without changing anything. Log:
   `%LOCALAPPDATA%\obs-camera-usb\watcher.log`. Source names and paths are at
   the top of the script.

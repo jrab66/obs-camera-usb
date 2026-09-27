@@ -5,9 +5,12 @@
 #   1. EMEET Studio running? If not, start it (it feeds the PIXY into
 #      "EMEET STUDIO Virtual Camera" + "EMEET Virtual Audio").
 #   2. OBS running? If not, start it with the virtual camera on.
-#   3. Via obs-websocket: does the $CameraSource source show a picture? If the
-#      snapshot is black, restart the source once and re-check. Still black =
-#      EMEET Studio's virtual camera is off (only a click in Studio fixes that).
+#   3. Is the PIXY itself on the network ($CameraIp: HTTP on :8000, else ping)?
+#      Via obs-websocket: does the $CameraSource source show a live picture?
+#      Two snapshots 3 s apart: black (dark) or frozen (byte-identical) = bad.
+#      Fix in steps: restart the OBS source; still bad and the PIXY is online
+#      = restart EMEET Studio (at most once per $StudioRestartCooldownMin min)
+#      and re-check. PIXY offline = only log it (power / Wi-Fi problem).
 #   4. OBS Virtual Camera on? If not, start it.
 #   5. Log (never change) the PIXY mic: Windows endpoint state + OBS mute.
 #
@@ -29,6 +32,10 @@ $EmeetStudioExe = "C:\Program Files\EMEET STUDIO\bin\64bit\EMEET STUDIO.exe"
 $EnsureObsVirtualCam = $true
 # Average snapshot brightness (0-255) below this counts as "no picture".
 $BlackThreshold = 8
+# The PIXY Wireless on the LAN; port 8000 is its built-in web server.
+$CameraIp = "192.168.100.20"
+$CameraHealthUrl = "http://${CameraIp}:8000/"
+$StudioRestartCooldownMin = 15
 
 $logDir = Join-Path $env:LOCALAPPDATA "obs-camera-usb"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
@@ -99,9 +106,11 @@ function Invoke-Obs($type, $data = @{}) {
     $msg.d.responseData
 }
 
-function Get-SourceBrightness($name) {
-    $shot = Invoke-Obs "GetSourceScreenshot" @{ sourceName = $name; imageFormat = "png"; imageWidth = 64 }
-    $b64 = $shot.imageData -replace "^data:image/png;base64,", ""
+function Get-SourceBrightness($name, $b64 = $null) {
+    if (-not $b64) {
+        $shot = Invoke-Obs "GetSourceScreenshot" @{ sourceName = $name; imageFormat = "png"; imageWidth = 64 }
+        $b64 = $shot.imageData -replace "^data:image/png;base64,", ""
+    }
     Add-Type -AssemblyName System.Drawing
     $stream = New-Object IO.MemoryStream(, [Convert]::FromBase64String($b64))
     $bmp = New-Object Drawing.Bitmap($stream)
@@ -115,6 +124,41 @@ function Get-SourceBrightness($name) {
     $count = [math]::Ceiling($bmp.Width / 4) * [math]::Ceiling($bmp.Height / 4)
     $bmp.Dispose()
     [math]::Round($sum / $count, 1)
+}
+
+# Two snapshots 3 s apart. Live video always differs a little (sensor noise),
+# so byte-identical frames mean the feed is frozen.
+function Get-SourceState($name) {
+    $a = (Invoke-Obs "GetSourceScreenshot" @{ sourceName = $name; imageFormat = "png"; imageWidth = 64 }).imageData
+    Start-Sleep -Seconds 3
+    $b = (Invoke-Obs "GetSourceScreenshot" @{ sourceName = $name; imageFormat = "png"; imageWidth = 64 }).imageData
+    $level = Get-SourceBrightness $name ($b -replace "^data:image/png;base64,", "")
+    $frozen = ($a -eq $b)
+    $text = if ($level -lt $BlackThreshold) { "BLACK (brightness $level)" }
+            elseif ($frozen) { "FROZEN (identical frames, brightness $level)" }
+            else { "picture OK (brightness $level)" }
+    [pscustomobject]@{
+        Brightness = $level
+        Frozen     = $frozen
+        Ok         = ($level -ge $BlackThreshold -and -not $frozen)
+        Text       = $text
+    }
+}
+
+function Test-CameraOnline {
+    try {
+        $r = Invoke-WebRequest -Uri $CameraHealthUrl -UseBasicParsing -TimeoutSec 4
+        return ($r.StatusCode -eq 200)
+    } catch {
+        return (Test-Connection -ComputerName $CameraIp -Count 1 -Quiet)
+    }
+}
+
+function Restart-ObsSource($name) {
+    Invoke-Obs "SetInputSettings" @{ inputName = $name; inputSettings = @{ active = $false } } | Out-Null
+    Start-Sleep -Seconds 2
+    Invoke-Obs "SetInputSettings" @{ inputName = $name; inputSettings = @{ active = $true } } | Out-Null
+    Start-Sleep -Seconds 8
 }
 
 # --- 1. EMEET Studio ------------------------------------------------------------
@@ -147,24 +191,44 @@ try {
     exit 1
 }
 
-# --- 3. Camera picture in OBS ---------------------------------------------------
+# --- 3. Camera: PIXY on the network, live picture in OBS ------------------------
+$cameraOnline = Test-CameraOnline
+Log ("PIXY {0}: {1}" -f $CameraIp, $(if ($cameraOnline) { "online" } else { "OFFLINE (no answer on :8000 or ping)" }))
 try {
-    $level = Get-SourceBrightness $CameraSource
-    if ($level -ge $BlackThreshold) {
-        Log "camera '$CameraSource': picture OK (brightness $level)"
+    $state = Get-SourceState $CameraSource
+    if ($state.Ok) {
+        Log "camera '$CameraSource': $($state.Text)"
     } elseif ($CheckOnly) {
-        Log "camera '$CameraSource': BLACK (brightness $level) (check-only, not restarting)"
+        Log "camera '$CameraSource': $($state.Text) (check-only, not fixing)"
     } else {
-        Log "camera '$CameraSource': BLACK (brightness $level) - restarting the source"
-        Invoke-Obs "SetInputSettings" @{ inputName = $CameraSource; inputSettings = @{ active = $false } } | Out-Null
-        Start-Sleep -Seconds 2
-        Invoke-Obs "SetInputSettings" @{ inputName = $CameraSource; inputSettings = @{ active = $true } } | Out-Null
-        Start-Sleep -Seconds 8
-        $level = Get-SourceBrightness $CameraSource
-        if ($level -ge $BlackThreshold) {
-            Log "camera '$CameraSource': picture back after restart (brightness $level)"
+        Log "camera '$CameraSource': $($state.Text) - restarting the OBS source"
+        Restart-ObsSource $CameraSource
+        $state = Get-SourceState $CameraSource
+        if ($state.Ok) {
+            Log "camera '$CameraSource': fixed by source restart - $($state.Text)"
+        } elseif (-not $cameraOnline) {
+            Log "camera '$CameraSource': still $($state.Text); PIXY is offline - check its power / Wi-Fi (not restarting EMEET Studio)"
         } else {
-            Log "camera '$CameraSource': STILL BLACK (brightness $level) - turn on the virtual camera in EMEET Studio"
+            $stamp = Join-Path $logDir "studio-restart.txt"
+            $last = [datetime]::MinValue
+            if (Test-Path $stamp) { $last = [datetime](Get-Content $stamp -Raw).Trim() }
+            if (((Get-Date) - $last).TotalMinutes -lt $StudioRestartCooldownMin) {
+                Log "camera '$CameraSource': still $($state.Text); EMEET Studio was restarted at $last - waiting for the $StudioRestartCooldownMin min cooldown"
+            } else {
+                Log "camera '$CameraSource': still $($state.Text) with the PIXY online - restarting EMEET Studio"
+                Set-Content -Path $stamp -Value (Get-Date -Format "o")
+                Stop-Process -Name "EMEET STUDIO" -Force -ErrorAction SilentlyContinue
+                Start-Sleep -Seconds 3
+                Start-Process -FilePath $EmeetStudioExe -WorkingDirectory (Split-Path $EmeetStudioExe) -WindowStyle Minimized
+                Start-Sleep -Seconds 30
+                Restart-ObsSource $CameraSource
+                $state = Get-SourceState $CameraSource
+                if ($state.Ok) {
+                    Log "camera '$CameraSource': fixed by EMEET Studio restart - $($state.Text)"
+                } else {
+                    Log "camera '$CameraSource': still $($state.Text) after EMEET Studio restart - check the virtual camera switch in EMEET Studio"
+                }
+            }
         }
     }
 } catch {
