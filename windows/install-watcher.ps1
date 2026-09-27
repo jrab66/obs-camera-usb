@@ -1,5 +1,5 @@
-# Registers watch-emeet-obs.ps1 as a scheduled task that runs every 5 minutes:
-# starting now (so no logon is needed after install) and again from 3 minutes
+# Registers watch-emeet-obs.ps1 as a scheduled task that runs every 5 minutes
+# starting now (so no logon is needed after install), plus once 3 minutes
 # after each logon (so start-all.ps1 / start-obs.ps1 go first). Runs as the
 # logged-on user, only while logged on (same as obs-camera-usb-startup), so
 # anything it starts (EMEET Studio, OBS) lands in the console session. Run
@@ -30,7 +30,8 @@ $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument `
 $every = New-TimeSpan -Minutes $IntervalMinutes
 $atLogon = New-ScheduledTaskTrigger -AtLogOn -User $user
 $atLogon.Delay = "PT3M"
-$atLogon.Repetition = (New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval $every).Repetition
+# Only the time trigger repeats (it keeps repeating across reboots); a
+# repeating logon trigger too would run the watcher twice per interval.
 $fromNow = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval $every
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
     -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 4)
