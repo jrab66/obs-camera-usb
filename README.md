@@ -331,8 +331,10 @@ Recovery after Studio was closed (verified 2026-09-27, ~35 s to a live picture):
 ### OBS audio tools (OBS PC)
 
 Three standalone scripts in `windows\` for checking and setting OBS audio on
-the OBS PC. Run them in PowerShell on that PC
-(`powershell -ExecutionPolicy Bypass -File .\<script>`).
+the OBS PC. **Manual, on-demand tools: nothing runs them automatically** —
+they are not called by `start-all.ps1`, `start-obs.ps1`, the watcher, or any
+scheduled task. Keep them for troubleshooting; run them by hand in PowerShell
+on that PC (`powershell -ExecutionPolicy Bypass -File .\<script>`).
 
 - **`obs-audio-audit.ps1`** (read-only) — snapshot of the audio setup: logon
   session and OBS / EMEET Studio / RustDesk processes, active Windows audio
