@@ -199,7 +199,7 @@ power cut, two scripts in `windows/`:
   network (`$CameraIp`, HTTP on port 8000), takes two snapshots of the camera
   source through obs-websocket and, if the picture is black or frozen,
   restarts the source, then (PIXY online) restarts EMEET Studio so it finds
-  the camera again (at most once per 15 min). It also starts the OBS Virtual
+  the camera again (on any run, 4 min cooldown). It also starts the OBS Virtual
   Camera if off and logs the PIXY mic state. `-CheckOnly`
   reports without changing anything. Log:
   `%LOCALAPPDATA%\obs-camera-usb\watcher.log`. Source names and paths are at

@@ -35,7 +35,9 @@ $BlackThreshold = 8
 # The PIXY Wireless on the LAN; port 8000 is its built-in web server.
 $CameraIp = "192.168.100.20"
 $CameraHealthUrl = "http://${CameraIp}:8000/"
-$StudioRestartCooldownMin = 15
+# Runs are 5 min apart and the restart stamp is written ~20 s into a run, so
+# 4 min lets every run restart EMEET Studio when needed.
+$StudioRestartCooldownMin = 4
 
 $logDir = Join-Path $env:LOCALAPPDATA "obs-camera-usb"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
