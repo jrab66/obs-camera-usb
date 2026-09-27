@@ -193,6 +193,21 @@ power cut, two scripts in `windows/`:
   To undo later: run `Autologon64.exe` and click *Disable*, then
   `Unregister-ScheduledTask -TaskName obs-camera-usb-startup`.
 
+- **`watch-emeet-obs.ps1`** — watchdog for an EMEET PIXY fed through EMEET
+  Studio into OBS (source `emeet` = *EMEET STUDIO Virtual Camera*). Every run:
+  starts EMEET Studio / OBS if missing, snapshots the camera source through
+  obs-websocket and restarts it if the picture is black (still black = turn
+  on the virtual camera in EMEET Studio, which no script can click), starts
+  the OBS Virtual Camera if off, and logs the PIXY mic state. `-CheckOnly`
+  reports without changing anything. Log:
+  `%LOCALAPPDATA%\obs-camera-usb\watcher.log`. Source names and paths are at
+  the top of the script.
+- **`install-watcher.ps1`** — registers the watchdog as scheduled task
+  `obs-camera-usb-watcher` (elevated PowerShell): every 5 minutes, starting
+  3 minutes after logon, as the logged-on user so anything it starts lands in
+  the console session. Remove with
+  `Unregister-ScheduledTask -TaskName obs-camera-usb-watcher`.
+
 If using Docker: enable *"Start Docker Desktop when you sign in"* in Docker
 Desktop settings — the compose file's `restart: unless-stopped` then brings
 the server up on its own.
