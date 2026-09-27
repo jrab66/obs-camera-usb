@@ -24,9 +24,9 @@ param(
     [switch]$CheckOnly
 )
 
-# OBS source names (from the working scene collection, 2026-09-27)
+# OBS source names (from the working scene collection, renamed 2026-09-27)
 $CameraSource = "emeet"
-$MicSource = "Captura de entrada audio"
+$MicSource = "emeet-audio"
 $MicEndpointName = "EMEET Virtual Audio"
 
 $ObsExe = "C:\Program Files\obs-studio\bin\64bit\obs64.exe"

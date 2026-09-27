@@ -286,7 +286,7 @@ on its next run. Remove everything:
 | Setting | Default | Meaning |
 |---|---|---|
 | `$CameraSource` | `emeet` | OBS source showing the PIXY |
-| `$MicSource` / `$MicEndpointName` | `Captura de entrada audio` / `EMEET Virtual Audio` | OBS mic source / Windows endpoint to report |
+| `$MicSource` / `$MicEndpointName` | `emeet-audio` / `EMEET Virtual Audio` | OBS mic source / Windows endpoint to report |
 | `$CameraIp` | `192.168.100.20` | PIXY on the LAN (give it a DHCP reservation) |
 | `$BlackThreshold` | `8` | average snapshot brightness (0-255) below this = black |
 | `$RestartEmeetStudio` | `$true` | allow restarting Studio when the picture stays bad |
@@ -303,7 +303,7 @@ on its next run. Remove everything:
 [watcher] EMEET Studio virtual camera: on
 [watcher] camera 'emeet': picture OK (brightness 101.9)
 [watcher] OBS virtual camera: on
-[watcher] mic: Windows 'EMEET Virtual Audio' active; OBS 'Captura de entrada audio' unmuted
+[watcher] mic: Windows 'EMEET Virtual Audio' active; OBS 'emeet-audio' unmuted
 ```
 
 Recovery after Studio was closed (verified 2026-09-27, ~35 s to a live picture):
