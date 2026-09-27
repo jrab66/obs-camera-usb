@@ -198,8 +198,9 @@ power cut, two scripts in `windows/`:
   starts EMEET Studio / OBS if missing, checks the PIXY Wireless is on the
   network (`$CameraIp`, HTTP on port 8000), takes two snapshots of the camera
   source through obs-websocket and, if the picture is black or frozen,
-  restarts the source, then (PIXY online) restarts EMEET Studio so it finds
-  the camera again (on any run, 4 min cooldown). It also starts the OBS Virtual
+  restarts the source. Restarting EMEET Studio is built in but off
+  (`$RestartEmeetStudio`): Studio 2.0.3 comes back with its virtual camera
+  switched off, which only a click in Studio turns back on. It also starts the OBS Virtual
   Camera if off and logs the PIXY mic state. `-CheckOnly`
   reports without changing anything. Log:
   `%LOCALAPPDATA%\obs-camera-usb\watcher.log`. Source names and paths are at

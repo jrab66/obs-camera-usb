@@ -38,6 +38,10 @@ $CameraHealthUrl = "http://${CameraIp}:8000/"
 # Runs are 5 min apart and the restart stamp is written ~20 s into a run, so
 # 4 min lets every run restart EMEET Studio when needed.
 $StudioRestartCooldownMin = 4
+# EMEET Studio 2.0.3 comes back with its virtual camera OFF after a restart
+# (not saved in its settings), so restarting it breaks the feed until someone
+# clicks the switch. Keep this off until that can be automated.
+$RestartEmeetStudio = $false
 
 $logDir = Join-Path $env:LOCALAPPDATA "obs-camera-usb"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
@@ -208,6 +212,8 @@ try {
         $state = Get-SourceState $CameraSource
         if ($state.Ok) {
             Log "camera '$CameraSource': fixed by source restart - $($state.Text)"
+        } elseif (-not $RestartEmeetStudio) {
+            Log "camera '$CameraSource': still $($state.Text) - turn on the virtual camera in EMEET Studio (automatic Studio restart disabled)"
         } elseif (-not $cameraOnline) {
             Log "camera '$CameraSource': still $($state.Text); PIXY is offline - check its power / Wi-Fi (not restarting EMEET Studio)"
         } else {
